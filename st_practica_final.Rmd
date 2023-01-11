@@ -1,0 +1,736 @@
+---
+title: "Proyecto Final"
+subtitle: "Series Temporales"
+author: "Francisco Martínez"
+date: "22/12/2022"
+output:
+  pdf_document:
+    toc: yes
+    number_sections: true
+  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("tidyverse")
+library("ggplot2")
+library(readr)
+```
+\newpage
+\section{Descripcion de la serie temporal con tendencia: Máximo precio diario
+del Bitcoin en USD desde 2017 hasta 2022}
+\subsection{Carga de los datos}
+```{r warning=FALSE, message=FALSE}
+btc <- read_csv("BTC-Daily.csv")
+btc <- btc[c(2,5)] # nos quedamos con las columnas date y high
+btc <- btc[0:1886,] # partimos desde 2017
+btc <- btc[with(btc, order(btc$date)), ] # Ordenamos de menor fecha a mayor
+```
+\subsection{Representación gráfica de los datos}
+```{r warning=FALSE, message=FALSE}
+btc_ts <- ts(btc$high,start=c(2017,1),end=c(2022,3),frequency=365)
+plot(btc_ts,xlab="Día",ylab="Precio en USD",main="Precio BTC")
+```
+\subsection{Análisis descriptivo de la serie temporal}
+```{r warning=FALSE, message=FALSE}
+n <- length(btc$date)
+first <- btc[1,]
+last <- btc[n,]
+btc_head <- btc[with(btc, order(btc$high,decreasing = TRUE)), ]
+btc_tail <- btc[with(btc, order(btc$high,decreasing = FALSE)), ]
+meda <- mean(btc$high)
+medn <- median(btc$high)
+max_min_diff <- btc_head[1,2] - btc_tail[1,2]
+time_diff <- last - first
+```
+Nos encontramos con un conjunto de datos de 1886 observaciones sobre el precio
+máximo por día del Bitcoin, desde enero de 2017 hasta marzo de 2022.
+
+El valor inicial observado es 1.005$/BTC el 01/01/2017.
+
+El último valor que encontramos es 43.626,49$/BTC el 01/03/2022.
+
+La diferencia entre la primera y la última observacion es de 42.621,49$/BTC.
+
+El máximo valor ha sido de 69.000$/BTC el 10/11/2021.
+
+El menor valor desde 2017 ha sido de 823,45$/BTC el 01/15/2017.
+
+La diferencia entre el máximo y mínimo valor es de 68.176,55$/BTC.
+
+La media de los datos es de 16.750$/BTC a lo largo del tiempo.
+
+La mediana es de 9.019$/BTC.
+
+Observamos picos pronunciados, seguidos de bajadas, en cuatro puntos diferentes:
+
+* Finales de 2017 con una escalada de ~ 20.000$ desde su mínimo local.
+* Mitad de 2019 con una escalada de ~ 10.000$ desde su mínimo local.
+* Principios de 2021 con una escalada de ~ 50.000$ desde su mínimo local.
+* Mitad de 2021 con una escalada de ~ 35.000$ desde su mínimo local.
+
+La tendencia de la serie es positiva.
+
+La tendencia de la serie en los últimos datos de la misma
+(desde finales de 2021) es decreciente.
+
+
+
+\newpage{}
+\section{Descripcion de la serie temporal con tendencia + estacionalidad: Clima
+diario de la India desde 2013 hasta 2017} 
+
+\subsection{Carga de los datos}
+```{r warning=FALSE, message=FALSE}
+clima <- read_csv("DailyDelhiClimateTrain.csv", 
+    col_types = cols(date = col_date(format = "%Y-%m-%d")))
+clima <- clima[c(1,2)] # nos quedamos con la fecha y la temperatura
+```
+
+\subsection{Representación gráfica de los datos}
+```{r warning=FALSE, message=FALSE}
+clima_ts <- ts(clima$meantemp,start=c(2013,1),end=c(2017,1),frequency=365)
+plot(clima_ts,xlab="Día",ylab="Temperatura")
+```
+\subsection{Análisis descriptivo de la serie temporal}
+```{r warning=FALSE, message=FALSE}
+n <- length(clima$date)
+first <- clima[1,]
+last <- clima[n,]
+clima_head <- clima[with(clima, order(clima$meantemp,decreasing = TRUE)), ]
+clima_tail <- clima[with(clima, order(clima$meantemp,decreasing = FALSE)), ]
+meda <- mean(clima$meantemp)
+```
+Nos encontramos con un conjunto de datos de 1462 observaciones sobre la temperatura
+media diaria de la India, desde 2013 hasta 2017.
+
+El valor inicial observado es 10ºC el 01/01/2013.
+
+El último valor que encontramos es 10ºC el 01/01/2017.
+
+No hay diferencia entre la primera y la última observacion.
+
+La temperatura máxima ha sido de 38.7ºC el 25/05/2013.
+
+La temperatura mínima sido de 6ºC el 05/01/2013.
+
+La diferencia entre el máximo y mínimo valor es de 32.7ºC.
+
+La temperatura media es de 25.5ºC a lo largo del tiempo.
+
+Observamos picos pronunciados entre los meses de mayo y agosto.
+
+Observamos mínimos entre los meses de diciembre y enero.
+
+Con lo último podemos concluir que hay estacionalidad.
+
+La longitud de un ciclo estacional es de un año.
+
+\subsection{Descomposición de la serie temporal}
+### Descomposición Aditiva
+```{r warning=FALSE, message=FALSE}
+comp <- decompose(clima_ts, type="additive")
+plot(comp)
+```
+
+### Descomposición Multiplicativa
+```{r warning=FALSE, message=FALSE}
+comp <- decompose(clima_ts, type="multiplicative")
+plot(comp)
+```
+En ambos casos observamos que la tendencia es positiva.
+La estacionalidad asciende, se mantiene en valores altos y vuelve a descender.
+
+En la descomposición aditiva, los errores no tienen outliers, aparecen en una
+única banda. La varianza se mantiene constante a lo largo del tiempo. Podemos
+decir que los errores tienen homocedasticidad. Como conclusión decimos que los
+errores no muestran estructura.
+
+En el caso multiplicativo los errores muestran picos al final e inicio de cada
+año. Podemos deducir que existen outliers que nuestro modelo no es capaz de 
+interpretar. En este caso no tenemos un ruido blanco constante.
+
+\newpage
+\section{Elección del modelo para la serie temporal con tendencia}
+\subsection{División del conjunto de datos}
+```{r}
+insample_btc <- window(btc_ts,start=c(2017,1),end=c(2022,1))   # Ajuste
+outsample_btc <- window(btc_ts,start=c(2022,2),end=c(2022,3)) # Predicción
+```
+\subsection{Suavizado exponencial simple vs Suavizado exponencial doble}
+```{r warning=FALSE, message=FALSE}
+sal_ses_btc <- HoltWinters(insample_btc,beta=FALSE,gamma=FALSE) # Simple
+sal_holt_btc <- HoltWinters(insample_btc,gamma=FALSE) # Doble
+```
+
+```{r warning=FALSE, message=FALSE}
+fitval_ses_btc <- fitted(sal_ses_btc);
+fitval_holt_btc <- fitted(sal_holt_btc);
+```
+
+\subsection{RMSE}
+```{r warning=FALSE, message=FALSE}
+rmse_ses_btc <- sqrt(mean((insample_btc[2:n]-fitval_ses_btc[,1])^2)); rmse_ses_btc
+rmse_holt_btc <- sqrt(mean((insample_btc[3:n]-fitval_holt_btc[,1])^2)); rmse_holt_btc
+```
+
+El RMSE del modelo Suavizado exponencial doble es menor, por lo que los datos
+predichos son más parecidos a los datos reales en este modelos.
+
+\subsection{RMSE utilizando la suma de errores al cuadrado}
+```{r warning=FALSE, message=FALSE}
+sqrt(sal_ses_btc$SSE/length(fitval_ses_btc[,1]))
+sqrt(sal_holt_btc$SSE/length(fitval_holt_btc[,1]))
+```
+El RMSE utilizando la suma de errores al cuadrado del modelo Suavizado
+exponencial doble es menor, por lo que este modelo sigue siendo la mejor opción.
+
+\subsection{MAPE}
+```{r warning=FALSE, message=FALSE}
+mape_ses <- 100*mean(abs(insample_btc[2:n]-fitval_ses_btc[,1])/insample_btc[2:n]);
+mape_ses
+mape_holt <- 100*mean(abs(insample_btc[3:n]-fitval_holt_btc[,1])/insample_btc[3:n]);
+mape_holt
+```
+En los errores porcentuales medios absolutos sigue siendo mejor el modelo de
+Holt.
+
+Como conclusión tenemos que el modelo Suavizado exponencial doble es mejor 
+opción que el modelo Suavizado exponencial simple.
+
+\subsection{Ecuación del modelo ajustado}
+```{r}
+sal_holt_btc$coefficients
+sal_holt_btc$alpha
+sal_holt_btc$beta
+```
+$\hat{x} = L_{(t-1)}+ T_{(t-1)}$
+
+$L_t = \alpha * x_t + (1- \alpha) * (L_{(t-1)} + T_{(t-1)})$
+
+$T_t = \beta * (L_t - L_{(t-1)} ) + (1 - \beta) * T_{(t-1)}$
+
+Sustituyendo los valores tenemos: 
+
+$L_t = x_t$
+
+$T_t = T_{(t-1)}$
+
+
+\subsection{Representamos la serie real frente a la serie ajustada}
+```{r}
+plot(sal_holt_btc,xlab="Día",ylab="Precio en USD")
+```
+\subsection{Calculamos la predicción para h=2 instantes temporales futuros}
+```{r}
+pred_btc_intervalos <- predict(sal_holt_btc,n.ahead=2,prediction.interval=TRUE,level=0.95)
+```
+\subsection{Representación gráfica de la serie junto a la predicción obtenida}
+```{r}
+plot(sal_holt_btc, pred_btc_intervalos,xlim=c(2021.9,2022))
+```
+\newpage
+\section{Elección del modelo para la serie temporal con tendencia + estacionalidad}
+\subsection{División del conjunto de datos}
+```{r}
+insample_clima <- window(clima_ts,start=c(2013,1),end=c(2015,365))   # Datos
+# utilizados para el ajuste
+outsample_clima <- window(clima_ts,start=c(2016,1),end=c(2016,365))
+# Observaciones reservadas para valorar la predicción
+```
+\subsection{Suavizado exponencial doble vs Suavizado exponencial triple}
+
+Comparamos el modelo de Suavizado exponencial doble (modelo de Holt) con el 
+modelo de Suavizado exponencial triple (modelo de Holt-Winters) en sus dos 
+métodos de estacionalidad: aditiva y multiplicativa.
+
+```{r warning=FALSE, message=FALSE}
+sal_holt_clima <- HoltWinters(insample_clima,gamma=FALSE)
+sal_hw_clima_add <- HoltWinters(insample_clima,seasonal="additive")
+sal_hw_clima_mult <- HoltWinters(insample_clima,seasonal="multiplicative")
+```
+
+```{r warning=FALSE, message=FALSE}
+fitval_holt <- fitted(sal_holt_clima);
+fitval_hw_add <- fitted(sal_hw_clima_add);
+fitval_hw_mult <- fitted(sal_hw_clima_mult);
+```
+
+\subsection{RMSE}
+```{r}
+insample_clima_2 <- window(insample_clima,start=c(2014,1),end=c(2015,365))
+```
+
+```{r warning=FALSE, message=FALSE}
+rmse_holt <- sqrt(mean((insample_clima_2-fitval_holt[,1])^2)); rmse_holt
+rmse_hw_add <- sqrt(mean((insample_clima_2-fitval_hw_add[,1])^2)); rmse_hw_add
+rmse_hw_mult <- sqrt(mean((insample_clima_2-fitval_hw_mult[,1])^2)); rmse_hw_mult
+```
+El modelo de Suavizado exponencial simple es el que
+mejor RMSE consigue.
+
+\subsection{RMSE utilizando la suma de errores al cuadrado}
+```{r}
+sqrt(sal_holt_clima$SSE/length(fitval_holt[,1]))
+sqrt(sal_hw_clima_add$SSE/length(fitval_hw_add[,1]))
+sqrt(sal_hw_clima_mult$SSE/length(fitval_hw_mult[,1]))
+```
+El modelo de Suavizado exponencial simple continúa
+obteniendo el mejor resultado.
+
+\subsection{MAPE}
+```{r warning=FALSE, message=FALSE}
+mape_holt <- 100*mean(abs(insample_clima_2-fitval_holt[,1])/insample_clima_2); mape_holt
+mape_hw_add <- 100*mean(abs(insample_clima_2-fitval_hw_add[,1])/insample_clima_2); mape_hw_add
+mape_hw_mult <- 100*mean(abs(insample_clima_2-fitval_hw_mult[,1])/insample_clima_2); mape_hw_mult
+```
+En cuanto a los errores porcentuales medios absolutos tenemos que el 
+modelo de Suavizado exponencial triple con estacionalidad aditiva es la mejor
+opción. Concluimos que el modelo que mejor se ajusta a nuestros
+datos es nombrado anteriormente.
+
+\subsection{Ecuación del modelo ajustado}
+```{r warning=FALSE, message=FALSE}
+sal_hw_clima_add$alpha 
+sal_hw_clima_add$beta 
+sal_hw_clima_add$gamma 
+```
+$\hat{x} = L_{(t-1)}+ T_{(t-1)} + S_{(t-c)}$
+
+$L_t = \alpha *( x_t- S_{(t-c)}) + (1- \alpha) * (L_{(t-1)} + T_{(t-1)})$
+
+$T_t = \beta * (L_t - L_{(t-1)} ) + (1 - \beta) * T_{(t-1)}$
+
+$S_t = \gamma * (x_t - L_{(t-1)} ) + (1 - \gamma) * S_{(t-c)}$
+
+Sustituyendo los valores tenemos: 
+
+$L_t = 0.7560656  * (x_t -S_{(t-c)}) + (1- 0.2439344) * (L_(t-1) + T_{(t-1)})$ 
+
+$T_t = T_{(t-1)}$
+
+$S_t = S_{(t-c)}$
+
+\subsection{Representamos la serie real frente a la serie ajustada}
+```{r warning=FALSE, message=FALSE}
+plot(sal_hw_clima_add,ylab="Temperatura",xlab="Día",main="Datos reales vs. ajustados")
+```
+\subsection{Calculamos la predicción para h=c instantes temporales futuros}
+```{r warning=FALSE, message=FALSE}
+pred_clima <- predict(sal_hw_clima_add,365)
+pred_clima_intervalos <- predict(sal_hw_clima_add,n.ahead=365,prediction.interval=TRUE,level=0.95) 
+```
+
+\subsection{Representación gráfica de la serie junto a la predicción obtenida}
+```{r warning=FALSE, message=FALSE}
+ts.plot(insample_clima,pred_clima,lty=1:2,main="Predicción")
+```
+```{r warning=FALSE, message=FALSE}
+plot(sal_hw_clima_add, pred_clima_intervalos,main="Predicción con IC al 95%")
+```
+\newpage
+
+\section{Modelo ARIMA en serie con tendencia}
+
+\subsection{Transformar la serie a un modelo estacionario}
+```{r}
+btc_ts <- ts(btc$high,start=c(2017,1),end=c(2022,60),frequency=365)
+plot(btc_ts,xlab="Día",ylab="Precio en USD",main="Precio BTC")
+outsample <- window(btc_ts,start=c(2022,59),end=c(2022,60))
+insample <- window(btc_ts,start=c(2017,1),end=c(2022,58))
+```
+Como se observa a simple vista nuestra serie no es estacionaria.
+
+Lo que tenemos que hacer a continuación es pasar a proceso estacionario.
+
+```{r}
+btc.dif <- diff(insample)
+plot(btc.dif,type="l")
+mean(btc.dif)
+```
+Ahora tenemos que nuestra serie es un proceso estacionario en cuanto a la media.
+
+
+\subsection{Función de autocorrelación y de autocorrelación parcial}
+
+Vamos a observar como se comporta nuestra serie tras aplicar la función de 
+autocorrelación parcial.
+
+```{r}
+acf(btc.dif)
+```
+Vemos que tenemos dos (2) coeficientes no nulos, el 1 y el 4, podemos probar
+con procesos de media movil de los dos coeficientes MA(1) y MA(4).
+
+Ahora aplicamos con la función de autocorrelación parcial.
+```{r}
+pacf(btc.dif)
+```
+No observamos tendencia. Podemos ver dos (2) coeficientes no nulos, el 1 y el 4.
+Podemos probar con AR(1) y AR(4).
+
+
+
+\subsection{Encontrar el modelo ARIMA(p,d,q)}
+
+Tenemos que a nuestros datos les podemos aplicar varios modelos ARIMA.
+
+- ARIMA(1,1,1)
+
+- ARIMA(4,1,1)
+
+- ARIMA(4,1,4)
+
+- ARIMA(1,1,4)
+
+**ARIMA(1,1,1)**
+
+```{r}
+fit.1 <- arima(btc.dif, order=c(1,0,1))
+fit.1
+```
+
+**ARIMA(4,1,1)**
+```{r}
+fit.2 <- arima(btc.dif, order=c(4,0,1))
+fit.2
+```
+
+**ARIMA(4,1,4)**
+```{r}
+fit.3 <- arima(btc.dif, order=c(4,0,4))
+fit.3
+```
+**ARIMA(1,1,4)**
+
+```{r}
+fit.4 <- arima(btc.dif, order=c(1,0,4))
+fit.4
+```
+
+A priori los modelos ARIMA(4,1,1), ARIMA(4,1,4) y ARIMA(1,1,4) logran aic's
+parecidos, siendo ARIMA(4,1,1) algo mejor (30565.23).
+
+
+Vamos a comparar con la función auto.arima 
+```{r}
+library(forecast)
+fit.auto <- auto.arima(insample)  
+fit.auto
+```
+Como podemos ver logra un aic algo mejor (30549.51) con un modelo **ARIMA(3,1,4)**.
+
+\subsection{Calculo de la bondad del ajuste}
+```{r}
+accuracy(fit.auto)
+checkresiduals(fit.auto,plot=TRUE)
+tsdiag(fit.auto)
+```
+
+\subsection{Representación de la serie real vs la ajustada}
+```{r}
+fitval <- fit.auto$fitted
+plot(btc_ts,col="black")
+lines(fitval,col="red")
+```
+
+\subsection{Predicción}
+```{r}
+forecast(fit.auto, h=2)$mean;outsample
+```
+Vemos que nuestra predicción nos muestra que los dos últimos datos pertenecientes
+al precio del BTC en los días 28/02/2022 y 01/03/2022 es de 40667.89 y 40733.83.
+Si lo comparamos con los datos reales tenemos que el valor en esos días fue 
+de 39886.92 y 44256.08
+
+```{r}
+plot(forecast(btc_ts,h=2,model=fit.auto),xlim=c(2022.1,2022.2),type = "l")
+```
+
+\newpage
+
+\section{Modelo ARIMA en serie con tendencia + estacionalidad}
+
+\subsection{Transformar la serie a un modelo estacionario}
+
+```{r}
+clima_ts <- ts(clima$meantemp,start=c(2013,1),end=c(2016,365),frequency=365)
+plot(clima_ts)
+insample <- window(clima_ts,start=c(2013,1),end=c(2015,365))
+outsample <- window(clima_ts,start=c(2016,1),end=c(2016,365))
+```
+
+Serie diferenciada una vez
+```{r}
+d.clima <- diff(insample) # Serie diferenciada una vez
+plot(d.clima,type="l")
+```
+Hemos quitado la tendencia con la diferencia regular, pero aún queda la estacionalidad.
+```{r}
+ddc.clima <- diff(d.clima,365) # Diferencia estacional
+plot(ddc.clima,type="l")
+abline(h = mean(ddc.clima), col = "blue")
+```
+
+
+\subsection{Función de autocorrelación y de autocorrelación parcial}
+
+Pasamos pues a examinar el correlograma y correlograma parcial.
+
+```{r}
+acf(ddc.clima,lag.max=10) # q = 3
+acf(ddc.clima,lag.max=1095) # Q = 1
+```
+
+
+```{r}
+pacf(ddc.clima,lag.max = 50) # p = 3
+pacf(ddc.clima,lag.max = 365) # P = 0 
+pacf(ddc.clima,lag.max = 1095)
+```
+
+\subsection{Encontrar el modelo sARIMA}
+
+Probamos el modelo sARIMA que hemos intuido.
+
+- sARIMA(3,0,3)(0,0,1)
+
+```{r}
+# fit.1 <- arima(ddc.clima, order=c(3,0,3), seasonal=list(order=c(0,0,1), period=365))
+# fit.1
+```
+
+Al probar el modelo de forma manual vemos como se genera un error:
+
+Error in makeARIMA(trarma[[1L]], trarma[[2L]], Delta, kappa, SSinit) : 
+maximum supported lag is 350
+
+Esto es debido a la longitud del periodo estacional, ya que estamos trabajando
+con datos diarios.
+
+Vamos a ver que resultado nos da la función auto.arima
+```{r}
+library(forecast)
+fit.auto <- auto.arima(insample)  
+fit.auto
+```
+El modelo resultante es un ARIMA(1,0,0)(0,1,0)
+
+Logra un AIC de 3143.33.
+
+
+La definición de la ecuación es:
+$\left(1-\theta_1 B-\theta_2 B^2-\ldots-\theta_q B^q\right)\left(1-\Theta_1 B^c-\Theta_2 B^{2 c}-\ldots-\Theta_Q B^{Q c}\right) \epsilon_t$
+
+Entonces con $(p=1,d=0,q=0)(P=0,D=1,Q=0)$ nuestra ecuación sería:
+
+$$(1-\phi_1 B) (1-B)x_t$$
+$$(1-\theta_1 B) (1-\Theta_1 B^{365}) \epsilon_t$$
+
+\subsection{Calculo de la bondad del ajuste}
+
+```{r}
+accuracy(fit.auto)
+```
+
+```{r}
+checkresiduals(fit.auto,plot=TRUE)
+```
+
+```{r}
+tsdiag(fit.auto)
+```
+
+\subsection{Representación de la serie real vs la ajustada}
+
+```{r}
+fitval <- fit.auto$fitted
+plot(insample,col="black")
+lines(fitval,col="red")
+```
+
+\subsection{Predicción}
+```{r}
+# forecast(fit.auto, h=365)$mean
+```
+```{r}
+plot(forecast(insample,h=365,model=fit.auto),type = "l")
+```
+
+\section{Modelo NAR en serie con tendencia}
+
+\subsection{Encontrar el modelo NAR}
+```{r}
+library(forecast)
+outsample.btc <- window(btc_ts,start=c(2022,1),end=c(2022,60))
+insample.btc <- window(btc_ts,start=c(2017,1),end=c(2021,365))
+```
+
+* Hemos dividido la serie temporal dejando dos meses para la predicción.
+
+```{r}
+plot(insample.btc)
+```
+
+La función 'nnetar' del paquete 'forecast' de R nos permite ajustar un modelo NNAR(p,k)$_c$ donde:
+
+- $p$ = número de observaciones previas consideradas
+
+- $k$ = número de nodos en la capa intermedia.
+
+
+```{r}
+set.seed(123)
+btc.fit.nar.p2.s2 <- nnetar(insample.btc) # NNAR(2,1,2)[365]
+btc.fit.nar.p4.s2 <- nnetar(insample.btc, p=4, size=2) # probamos a aumentar p
+btc.fit.nar.p2.s4 <- nnetar(insample.btc, p=2, size=4) # probamos a aumentar k
+```
+
+
+\subsection{Cálculo de la bondad de ajuste}
+
+```{r}
+accuracy(btc.fit.nar.p2.s2)
+accuracy(btc.fit.nar.p4.s2)
+accuracy(btc.fit.nar.p2.s4)
+```
+
+- A priori, aumentando k logramos mejores resultados.
+
+\subsection{Representación de la serie real vs. ajustada}
+
+```{r}
+fitval <- fitted.values(btc.fit.nar.p2.s4)
+plot(btc_ts,ylab="Precio del BTC en $")
+lines(fitval, col="blue")
+```
+
+\subsection{Calculo de la predicción para h=60 instantes temporales futuros}
+```{r}
+pred.p2.s2 <- forecast(btc.fit.nar.p2.s2, h = 60)  # Predicción puntual para h = 60 (dos meses)
+pred.p4.s2 <- forecast(btc.fit.nar.p4.s2, h = 60)
+pred.p2.s4 <- forecast(btc.fit.nar.p2.s4, h = 60)
+```
+
+```{r}
+rmse_pred.p2.s2 <- sqrt(mean((outsample.btc - pred.p2.s2$mean)^2));rmse_pred.p2.s2
+rmse_pred.p4.s2 <- sqrt(mean((outsample.btc - pred.p4.s2$mean)^2));rmse_pred.p4.s2
+rmse_pred.p2.s4 <- sqrt(mean((outsample.btc - pred.p2.s4$mean)^2));rmse_pred.p2.s4
+```
+
+- Tras calcular la bondad de ajuste con los datos de la predicción y el test,
+se observa que el modelo generado automáticamente NNAR(2,1,2)[365] es el que mejor
+resultados proporciona. $RMSE$ = 3361.892.
+
+\subsection{Representación gráfica de la serie junto a la predicción obtenida}
+```{r}
+plot(pred.p2.s2,xlim=c(2021,2022.2))
+```
+
+```{r}
+df.comp <- data.frame(outsample.btc,pred.p2.s2$mean)
+df.comp
+```
+
+```{r}
+pred.p2.s2.IC <- forecast(btc.fit.nar.p2.s2, PI = TRUE, h=60)  # Predicción puntual e intervalos de predicción
+plot(pred.p2.s2.IC,xlim=c(2021,2022.2))
+```
+\subsection{Comparación con el mejor modelo ARIMA}
+```{r}
+fit.auto <- auto.arima(insample.btc)
+plot(forecast(insample.btc,h=60,model=fit.auto),xlim=c(2021,2022.2),type = "l")
+rmse_pred.arima <- sqrt(mean((outsample.btc - forecast(fit.auto, h=60)$mean)^2));rmse_pred.arima
+```
+
+- Por el RMSE y como observamos el comportamiento de la predicción de la serie 
+en el gráfico, llegamos a la conclusión de que el modelo NAR es mejor que el
+mejor modelo ARIMA. Aún así, podríamos alcanzar mejores bondades de ajuste de
+forma iterativa.
+
+
+\section{Modelo NAR en serie con tendencia + estacionalidad}
+\subsection{Encontrar el modelo NAR}
+```{r}
+library(forecast)
+insample.clima <- window(clima_ts,start=c(2013,1),end=c(2015,365))
+outsample.clima <- window(clima_ts,start=c(2016,1),end=c(2016,365))
+```
+
+* Hemos dividido la serie temporal dejando un año para la predicción.
+
+```{r}
+plot(insample.clima)
+```
+
+La función 'nnetar' del paquete 'forecast' de R nos permite ajustar un modelo NNAR(p,P,k)$_c$ donde:
+
+- $p$ = número de observaciones previas consideradas.
+
+- $P$ = número de observaciones del mismo periodo en ciclos anteriores consideradas.
+
+- $k$ = número de nodos en la capa intermedia.
+
+```{r}
+set.seed(123)
+fit.nar.1 <- nnetar(insample.clima); # NNAR(4,1,3)
+fit.nar.2 <- nnetar(insample.clima, p=6, P=1 ,size=3) # aumentamos p
+fit.nar.3 <- nnetar(insample.clima, p=4, P=1 ,size=5) # aumentamos k
+```
+
+\subsection{Cálculo de la bondad de ajuste}
+
+```{r}
+accuracy(fit.nar.1)
+accuracy(fit.nar.2)
+accuracy(fit.nar.3)
+```
+
+- A priori, aumentando k logramos mejores resultados.
+
+\subsection{Representación de la serie real vs. ajustada}
+
+```{r}
+fitval <- fitted.values(fit.nar.3)
+plot(clima_ts,ylab="Clima en Grados centígrados")
+lines(fitval, col="blue")
+```
+
+\subsection{Calculo de la predicción para h=c instantes temporales futuros}
+```{r}
+pred.1 <- forecast(fit.nar.1, h = 365)  # Predicción puntual para h = 365
+pred.2 <- forecast(fit.nar.2, h = 365)
+pred.3 <- forecast(fit.nar.3, h = 365)
+```
+
+```{r}
+rmse_pred.1 <- sqrt(mean((outsample.clima - pred.1$mean)^2));rmse_pred.1
+rmse_pred.2 <- sqrt(mean((outsample.clima - pred.2$mean)^2));rmse_pred.2
+rmse_pred.3 <- sqrt(mean((outsample.clima - pred.3$mean)^2));rmse_pred.3
+```
+
+- Podemos ver como efectivamente, aumentando el número de nodos en la capa
+intermedia logramos un mejor modelo. Nuestro mejor modelo sería: NNAR(4,1,5)[365].
+
+\subsection{Representación gráfica de la serie junto a la predicción obtenida}
+```{r}
+plot(pred.3)
+```
+
+* La predicción con intervalos de confianza es muy costosa computacionalmente y por
+esta razón tenemos que obviarla.
+
+\subsection{Comparación con el mejor modelo ARIMA}
+```{r}
+fit.auto <- auto.arima(insample.clima)
+#plot(forecast(insample.clima,h=365,model=fit.auto),type = "l")
+rmse_pred.arima <- sqrt(mean((outsample.clima - forecast(fit.auto, h=365)$mean)^2));rmse_pred.arima
+```
+
+- Por el RMSE y como observamos el comportamiento de la predicción de la serie 
+en el gráfico, llegamos a la conclusión otra vez de que el modelo NAR es mejor que el
+mejor modelo ARIMA. Aún así, podríamos alcanzar mejores bondades de ajuste de
+forma iterativa.
+
+
+
